@@ -1,0 +1,33 @@
+services:
+  app:
+    build: .
+    container_name: iot-monitor-app
+    restart: always
+    ports:
+      - "3001:3001"
+    environment:
+      - PORT=3001
+      - PGHOST=db
+      - PGUSER=iot_user
+      - PGPASSWORD=iot_password
+      - PGDATABASE=iot_db
+      - PGPORT=5432
+      - MQTT_BROKER=mqtt://broker.hivemq.com:1883
+    depends_on:
+      - db
+
+  db:
+    image: postgres:15
+    container_name: iot-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: iot_user
+      POSTGRES_PASSWORD: iot_password
+      POSTGRES_DB: iot_db
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:

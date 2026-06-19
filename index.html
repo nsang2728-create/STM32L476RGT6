@@ -1,0 +1,663 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>STM32 MAG8000 Monitor</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/5.3.4/mqtt.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+:root{
+  --bg:#f5f7fa;
+  --surface:#ffffff;
+  --surface2:#f0f2f6;
+  --border:#e4e8ee;
+  --border2:#d0d5dd;
+  --text:#111827;
+  --text2:#374151;
+  --muted:#6b7280;
+  --hint:#9ca3af;
+
+  --blue:#1d6cf0;
+  --blue-l:#eff4ff;
+  --blue-m:#c7d9fd;
+  --green:#16a34a;
+  --green-l:#f0fdf4;
+  --green-m:#bbf7d0;
+  --red:#dc2626;
+  --red-l:#fef2f2;
+  --red-m:#fecaca;
+  --amber:#d97706;
+  --amber-l:#fffbeb;
+  --amber-m:#fde68a;
+  --teal:#0891b2;
+  --teal-l:#ecfeff;
+  --purple:#7c3aed;
+  --purple-l:#f5f3ff;
+  --orange:#ea580c;
+  --orange-l:#fff7ed;
+
+  --r:10px;
+  --r2:14px;
+  --sh:0 1px 3px rgba(0,0,0,.06),0 1px 2px rgba(0,0,0,.04);
+  --sh2:0 4px 16px rgba(0,0,0,.08);
+  --sh3:0 8px 32px rgba(0,0,0,.10);
+  --font:'Plus Jakarta Sans',sans-serif;
+}
+
+body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:100vh;padding:20px 24px;}
+
+/* ─── HEADER ─── */
+.hdr{
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:var(--r2);
+  padding:18px 24px;
+  margin-bottom:18px;
+  box-shadow:var(--sh);
+  display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:14px;
+}
+.hl h1{font-size:17px;font-weight:700;color:var(--text);letter-spacing:-.3px;}
+.hl h1 .acc{color:var(--blue);}
+.hl p{font-size:12px;color:var(--muted);margin-top:3px;}
+.badges{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;}
+.badge{
+  display:inline-flex;align-items:center;gap:5px;
+  padding:3px 10px;border-radius:20px;font-size:11px;font-weight:500;
+  border:1px solid var(--border);background:var(--surface2);color:var(--muted);
+}
+.badge .dot{width:6px;height:6px;border-radius:50%;background:#d1d5db;flex-shrink:0;}
+.badge.ok{background:var(--green-l);border-color:var(--green-m);color:var(--green);}
+.badge.ok .dot{background:var(--green);box-shadow:0 0 0 2px #bbf7d0;}
+.badge.warn{background:var(--amber-l);border-color:var(--amber-m);color:var(--amber);}
+.badge.warn .dot{background:var(--amber);}
+.badge.err{background:var(--red-l);border-color:var(--red-m);color:var(--red);}
+.badge.err .dot{background:var(--red);}
+.hr{display:flex;gap:7px;flex-wrap:wrap;align-items:center;}
+.inp{
+  background:var(--surface2);border:1.5px solid var(--border);color:var(--text);
+  border-radius:var(--r);padding:7px 12px;font-size:12px;width:220px;outline:none;
+  font-family:var(--font);transition:border-color .15s;
+}
+.inp:focus{border-color:var(--blue);background:#fff;}
+.btn{
+  padding:7px 14px;border-radius:var(--r);font-size:12px;font-weight:600;
+  cursor:pointer;transition:all .15s;font-family:var(--font);border:1.5px solid var(--border);
+  background:var(--surface2);color:var(--text2);
+}
+.btn:hover{border-color:var(--border2);box-shadow:var(--sh);}
+.b-gr{background:var(--green-l);border-color:var(--green-m);color:var(--green);}
+.b-gr:hover{background:#dcfce7;}
+.b-re{background:var(--red-l);border-color:var(--red-m);color:var(--red);}
+.b-re:hover{background:#fee2e2;}
+.b-bl{background:var(--blue-l);border-color:var(--blue-m);color:var(--blue);}
+.b-bl:hover{background:#dbeafe;}
+
+/* ─── ALERT ─── */
+#alrt{display:none;padding:10px 15px;border-radius:var(--r);margin-bottom:14px;
+  font-size:13px;font-weight:500;border-left:3px solid;}
+#alrt.show{display:block;}
+#alrt.s{background:var(--green-l);border-color:var(--green);color:var(--green);}
+#alrt.e{background:var(--red-l);border-color:var(--red);color:var(--red);}
+#alrt.i{background:var(--blue-l);border-color:var(--blue);color:var(--blue);}
+
+/* ─── STATS ROW ─── */
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:18px;}
+.stat{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--r2);
+  padding:14px 18px;box-shadow:var(--sh);
+}
+.sl{font-size:10px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.7px;margin-bottom:5px;}
+.sv{font-size:22px;font-weight:700;color:var(--text);}
+.sm{font-size:11px;color:var(--hint);margin-top:3px;}
+
+/* ─── SECTION LABEL ─── */
+.sec{
+  display:flex;align-items:center;gap:10px;
+  font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);
+  margin-bottom:12px;margin-top:4px;
+}
+.sec::after{content:'';flex:1;height:1px;background:var(--border);}
+.sec-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+
+/* ─── CARDS ─── */
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:18px;}
+.card{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--r2);
+  padding:18px 20px;box-shadow:var(--sh);position:relative;overflow:hidden;
+  transition:box-shadow .2s,border-color .2s;
+}
+.card:hover{box-shadow:var(--sh2);border-color:var(--border2);}
+.ca{position:absolute;top:0;left:0;right:0;height:3px;}
+.ci{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;
+  font-size:15px;margin-bottom:10px;}
+.cl{font-size:10px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.6px;}
+.cv{font-size:28px;font-weight:700;color:var(--text);margin:5px 0 1px;line-height:1.1;}
+.cu{font-size:12px;color:var(--muted);font-weight:400;}
+.ct2{font-size:10px;color:var(--hint);margin-top:6px;}
+.card-wide{grid-column:span 2;}
+@media(max-width:600px){.card-wide{grid-column:span 1;}}
+
+/* card màu accent */
+.card-flow{background:linear-gradient(135deg,#eff4ff 0%,#fff 60%);}
+.card-flow .cv{color:var(--blue);}
+
+/* ─── MAG STATUS ─── */
+.mst-badge{
+  display:inline-flex;align-items:center;gap:5px;margin-top:8px;
+  padding:4px 10px;border-radius:20px;font-size:11px;font-weight:600;
+}
+.mst-ok{background:var(--green-l);color:var(--green);border:1px solid var(--green-m);}
+.mst-err{background:var(--red-l);color:var(--red);border:1px solid var(--red-m);}
+.mst-warn{background:var(--amber-l);color:var(--amber);border:1px solid var(--amber-m);}
+.mst-gray{background:var(--surface2);color:var(--muted);border:1px solid var(--border);}
+
+/* ─── CHART / BOX ─── */
+.box{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--r2);
+  padding:20px 22px;margin-bottom:18px;box-shadow:var(--sh);
+}
+.bh2{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:16px;}
+.bh2 h2{font-size:14px;font-weight:700;color:var(--text);}
+.ctrl{display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
+select{
+  background:var(--surface2);border:1.5px solid var(--border);color:var(--text);
+  border-radius:var(--r);padding:6px 10px;font-size:12px;outline:none;cursor:pointer;
+  font-family:var(--font);transition:border-color .15s;
+}
+select:focus{border-color:var(--blue);}
+canvas{height:250px!important;}
+
+/* ─── TABLE ─── */
+.tw{overflow-x:auto;}
+table{width:100%;border-collapse:collapse;font-size:12px;}
+thead th{
+  text-align:left;padding:9px 12px;color:var(--muted);font-size:10px;
+  text-transform:uppercase;letter-spacing:.5px;border-bottom:2px solid var(--border);
+  font-weight:700;background:var(--surface2);white-space:nowrap;
+}
+tbody td{padding:9px 12px;border-bottom:1px solid var(--border);white-space:nowrap;color:var(--text2);}
+tbody tr:last-child td{border-bottom:none;}
+tbody tr:hover td{background:#fafbfc;}
+.tag{display:inline-flex;align-items:center;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:600;}
+.tok{background:var(--green-l);color:var(--green);}
+.twn{background:var(--amber-l);color:var(--amber);}
+.ter{background:var(--red-l);color:var(--red);}
+.tgy{background:var(--surface2);color:var(--muted);}
+
+/* ─── LOG ─── */
+#log{
+  background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);
+  padding:12px 14px;font-family:'Courier New',monospace;font-size:11px;color:var(--blue);
+  max-height:130px;overflow-y:auto;white-space:pre-wrap;word-break:break-all;line-height:1.8;
+}
+
+/* ─── LIVE DOT ─── */
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0.3}}
+.live-dot{display:inline-block;width:7px;height:7px;border-radius:50%;
+  background:var(--green);margin-right:4px;animation:blink 1.8s ease-in-out infinite;}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="hdr">
+  <div class="hl">
+    <h1>STM32 <span class="acc">MAG 8000</span> Monitor</h1>
+    <p>STM32L476RG · SIM7600 4G · Siemens MAG 8000 · INA219 · DHT22</p>
+    <div class="badges">
+      <span class="badge" id="bM"><span class="dot"></span><span id="tM">MQTT: --</span></span>
+      <span class="badge" id="bS"><span class="dot"></span><span id="tS">Server: --</span></span>
+      <select id="dev-sel" style="margin-left:10px;height:26px;padding:0 8px;border-radius:20px;font-size:11px;font-weight:600;">
+        <option value="stm32_01">Thiết bị 01 (stm32_01)</option>
+        <option value="stm32_02">Thiết bị 02 (stm32_02)</option>
+      </select>
+    </div>
+  </div>
+  <div class="hr">
+    <input class="inp" id="brk" value="wss://broker.hivemq.com:8884/mqtt">
+    <button class="btn b-gr" id="bc">🔗 Kết nối</button>
+    <button class="btn b-re" id="bd">✂️ Ngắt</button>
+    <button class="btn b-bl" id="br">🔄 Tải lịch sử</button>
+    <button class="btn" id="be">📥 Xuất CSV</button>
+    <span style="border-left:1px solid var(--border);height:20px;margin:0 5px"></span>
+    <button class="btn b-bl" id="btn-read">📡 Đọc ngay</button>
+    <button class="btn b-re" id="btn-test">⚙️ Chạy Test</button>
+  </div>
+</div>
+
+<div id="alrt"></div>
+
+<!-- STATS -->
+<div class="stats">
+  <div class="stat">
+    <div class="sl">Tổng bản ghi</div>
+    <div class="sv" id="iT">--</div>
+    <div class="sm">Tích lũy DB</div>
+  </div>
+  <div class="stat">
+    <div class="sl">Hôm nay</div>
+    <div class="sv" id="iY">--</div>
+    <div class="sm" id="iL">Chưa nhận</div>
+  </div>
+  <div class="stat">
+    <div class="sl">Lưu lượng TB</div>
+    <div class="sv" id="iFA">--</div>
+    <div class="sm" id="iFMM">max --</div>
+  </div>
+  <div class="stat">
+    <div class="sl">Tổng lượng tích lũy</div>
+    <div class="sv" id="iTF">--</div>
+    <div class="sm">m³</div>
+  </div>
+  <div class="stat">
+    <div class="sl">Nhiệt độ TB</div>
+    <div class="sv" id="iA">--</div>
+    <div class="sm" id="iMM">min / max</div>
+  </div>
+  <div class="stat">
+    <div class="sl">Uptime server</div>
+    <div class="sv" id="iU">--</div>
+    <div class="sm">phút</div>
+  </div>
+</div>
+
+<!-- SECTION: MAG 8000 -->
+<div class="sec">
+  <span class="sec-dot" style="background:var(--blue);"></span>
+  Siemens MAG 8000 — Đồng hồ lưu lượng điện từ
+</div>
+
+<div class="cards">
+  <!-- Lưu lượng tức thời - card nổi bật -->
+  <div class="card card-flow card-wide">
+    <div class="ca" style="background:linear-gradient(90deg,#1d6cf0,#60a5fa);"></div>
+    <div class="ci" style="background:var(--blue-l);color:var(--blue);">💧</div>
+    <div class="cl">Lưu lượng tức thời</div>
+    <div class="cv" style="font-size:36px;"><span id="flow_rate">--</span><span class="cu" style="font-size:16px;"> m³/h</span></div>
+    <div class="ct2" id="frt">Chờ dữ liệu…</div>
+  </div>
+
+  <div class="card">
+    <div class="ca" style="background:#16a34a;"></div>
+    <div class="ci" style="background:var(--green-l);color:var(--green);">▶</div>
+    <div class="cl">Tổng lượng thuận</div>
+    <div class="cv"><span id="total_fwd">--</span><span class="cu"> m³</span></div>
+    <div class="ct2" id="tft">Chờ dữ liệu…</div>
+  </div>
+
+  <div class="card">
+    <div class="ca" style="background:#d97706;"></div>
+    <div class="ci" style="background:var(--amber-l);color:var(--amber);">◀</div>
+    <div class="cl">Tổng lượng nghịch</div>
+    <div class="cv"><span id="total_rev">--</span><span class="cu"> m³</span></div>
+    <div class="ct2" id="trt">Chờ dữ liệu…</div>
+  </div>
+
+  <div class="card">
+    <div class="ca" style="background:#7c3aed;"></div>
+    <div class="ci" style="background:var(--purple-l);color:var(--purple);">⚡</div>
+    <div class="cl">Vận tốc dòng chảy</div>
+    <div class="cv"><span id="velocity">--</span><span class="cu"> m/s</span></div>
+    <div class="ct2" id="velt">Chờ dữ liệu…</div>
+  </div>
+
+  <div class="card">
+    <div class="ca" style="background:#0891b2;"></div>
+    <div class="ci" style="background:var(--teal-l);color:var(--teal);">🔎</div>
+    <div class="cl">Trạng thái MAG 8000</div>
+    <div class="cv" style="font-size:16px;font-family:'Courier New',monospace;color:var(--text2);">
+      <span id="mag_status_val">--</span>
+    </div>
+    <div id="mag_status_badge" class="mst-badge mst-gray">— Chưa có dữ liệu</div>
+    <div class="ct2" id="mst">Chờ dữ liệu…</div>
+  </div>
+</div>
+
+<!-- SECTION: CẢM BIẾN PHỤ -->
+<div class="sec">
+  <span class="sec-dot" style="background:var(--teal);"></span>
+  Cảm biến phụ — INA219 · DHT22 · SIM7600
+</div>
+
+<div class="cards">
+  <div class="card">
+    <div class="ca" style="background:#1d6cf0;"></div>
+    <div class="ci" style="background:var(--blue-l);color:var(--blue);">⚡</div>
+    <div class="cl">Điện áp (INA219)</div>
+    <div class="cv"><span id="voltage">--</span><span class="cu"> V</span></div>
+    <div class="ct2" id="vt">Chờ…</div>
+  </div>
+  <div class="card">
+    <div class="ca" style="background:#16a34a;"></div>
+    <div class="ci" style="background:var(--green-l);color:var(--green);">🔌</div>
+    <div class="cl">Dòng điện (INA219)</div>
+    <div class="cv"><span id="current">--</span><span class="cu"> mA</span></div>
+    <div class="ct2" id="ct">Chờ…</div>
+  </div>
+  <div class="card">
+    <div class="ca" style="background:#7c3aed;"></div>
+    <div class="ci" style="background:var(--purple-l);color:var(--purple);">💡</div>
+    <div class="cl">Công suất (INA219)</div>
+    <div class="cv"><span id="power">--</span><span class="cu"> mW</span></div>
+    <div class="ct2" id="pt">Chờ…</div>
+  </div>
+  <div class="card">
+    <div class="ca" style="background:#dc2626;"></div>
+    <div class="ci" style="background:var(--red-l);color:var(--red);">🌡️</div>
+    <div class="cl">Nhiệt độ (DHT22)</div>
+    <div class="cv"><span id="temperature">--</span><span class="cu"> °C</span></div>
+    <div class="ct2" id="tt">Chờ…</div>
+  </div>
+  <div class="card">
+    <div class="ca" style="background:#0891b2;"></div>
+    <div class="ci" style="background:var(--teal-l);color:var(--teal);">💧</div>
+    <div class="cl">Độ ẩm (DHT22)</div>
+    <div class="cv"><span id="humidity">--</span><span class="cu"> %</span></div>
+    <div class="ct2" id="ht">Chờ…</div>
+  </div>
+  <div class="card">
+    <div class="ca" style="background:#ea580c;"></div>
+    <div class="ci" style="background:var(--orange-l);color:var(--orange);">📶</div>
+    <div class="cl">Tín hiệu 4G</div>
+    <div class="cv"><span id="signal">--</span><span class="cu"> CSQ</span></div>
+    <div class="ct2" id="st">Chờ…</div>
+  </div>
+</div>
+
+<!-- CHART -->
+<div class="box">
+  <div class="bh2">
+    <h2>📊 Biểu đồ lịch sử</h2>
+    <div class="ctrl">
+      <select id="tr">
+        <option value="1">1 giờ</option>
+        <option value="6">6 giờ</option>
+        <option value="24" selected>24 giờ</option>
+        <option value="168">7 ngày</option>
+        <option value="720">30 ngày</option>
+      </select>
+      <select id="ct2sel">
+        <option value="flow_rate" selected>Lưu lượng (m³/h)</option>
+        <option value="total_fwd">Tổng thuận (m³)</option>
+        <option value="total_rev">Tổng nghịch (m³)</option>
+        <option value="velocity">Vận tốc (m/s)</option>
+        <option value="temperature">Nhiệt độ (°C)</option>
+        <option value="humidity">Độ ẩm (%)</option>
+        <option value="voltage">Điện áp (V)</option>
+        <option value="current">Dòng điện (mA)</option>
+        <option value="power">Công suất (mW)</option>
+      </select>
+    </div>
+  </div>
+  <canvas id="ch"></canvas>
+</div>
+
+<!-- TABLE -->
+<div class="box">
+  <div class="bh2">
+    <h2>📋 Lịch sử bản ghi</h2>
+    <div class="ctrl">
+      <select id="tblLim">
+        <option value="50">50 bản ghi</option>
+        <option value="100" selected>100 bản ghi</option>
+        <option value="200">200 bản ghi</option>
+        <option value="500">500 bản ghi</option>
+      </select>
+    </div>
+  </div>
+  <div class="tw">
+    <table>
+      <thead><tr>
+        <th>#</th>
+        <th>Thời gian</th>
+        <th>Lưu lượng (m³/h)</th>
+        <th>Tổng thuận (m³)</th>
+        <th>Tổng nghịch (m³)</th>
+        <th>Vận tốc (m/s)</th>
+        <th>MAG Status</th>
+        <th>Nhiệt độ (°C)</th>
+        <th>Độ ẩm (%)</th>
+        <th>Điện áp (V)</th>
+        <th>Tín hiệu</th>
+      </tr></thead>
+      <tbody id="tb"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- LOG -->
+<div class="box">
+  <div class="bh2">
+    <h2>🖥️ MQTT Log</h2>
+    <button class="btn" onclick="document.getElementById('log').textContent=''">🗑️ Xóa</button>
+  </div>
+  <div id="log">Chờ kết nối MQTT…</div>
+</div>
+
+<script>
+const CL={
+  flow_rate:"#1d6cf0",total_fwd:"#16a34a",total_rev:"#d97706",velocity:"#7c3aed",
+  temperature:"#dc2626",humidity:"#0891b2",voltage:"#1d6cf0",current:"#16a34a",power:"#7c3aed"
+};
+const LB={
+  flow_rate:"Lưu lượng (m³/h)",total_fwd:"Tổng thuận (m³)",total_rev:"Tổng nghịch (m³)",
+  velocity:"Vận tốc (m/s)",temperature:"Nhiệt độ (°C)",humidity:"Độ ẩm (%)",
+  voltage:"Điện áp (V)",current:"Dòng điện (mA)",power:"Công suất (mW)"
+};
+const TP={all:"viettel/sensor/all",status:"viettel/sensor/status",ack:"viettel/sensor/ack"};
+let mc=null,ch=null,rows=[];
+const $=id=>document.getElementById(id);
+const fmt=(v,d=4)=>(v!=null&&isFinite(+v))?(+v).toFixed(d):"--";
+const fts=iso=>{try{return new Date(iso).toLocaleString("vi-VN");}catch{return iso;}};
+const fn=()=>new Date().toLocaleTimeString("vi-VN");
+
+function log(m){const e=$("log");e.textContent="["+fn()+"] "+m+"\n"+e.textContent.slice(0,8000);}
+function alrt(m,t){const e=$("alrt");e.textContent=m;e.className="alrt show "+t;clearTimeout(e._t);e._t=setTimeout(()=>e.classList.remove("show"),4000);}
+function bdg(id,cls,txt){const e=$(id);e.className="badge "+(cls||"");e.querySelector("span:last-child").textContent=txt;}
+
+function updateMAG(d,now){
+  const f4=v=>fmt(v,4);
+  $("flow_rate").textContent = f4(d.flow_rate);
+  $("total_fwd").textContent = f4(d.total_fwd);
+  $("total_rev").textContent = f4(d.total_rev);
+  $("velocity").textContent  = f4(d.velocity);
+  const ts="Cập nhật: "+fts(now);
+  ["frt","tft","trt","velt","mst"].forEach(id=>$(id).textContent=ts);
+  const sw=d.mag_status||"--";
+  $("mag_status_val").textContent=sw;
+  const b=$("mag_status_badge");
+  if(sw==="--"||sw==="0xFFFF"){b.className="mst-badge mst-err";b.textContent="❌ Lỗi đọc register";}
+  else if(sw==="0x0000"){b.className="mst-badge mst-ok";b.textContent="✅ Bình thường (0x0000)";}
+  else{b.className="mst-badge mst-warn";b.textContent="⚠ Cảnh báo: "+sw;}
+}
+
+function updateAux(d,now){
+  const ts="Cập nhật: "+fts(now);
+  const sc=(id,v,dec,tsId)=>{const e=$(id);if(e)e.textContent=fmt(v,dec);const t=$(tsId);if(t)t.textContent=ts;};
+  sc("voltage",   d.voltage_ina,  2,"vt");
+  sc("current",   d.current_ina,  2,"ct");
+  sc("power",     d.power_ina,    2,"pt");
+  sc("temperature",d.temperature, 1,"tt");
+  sc("humidity",  d.humidity,     1,"ht");
+  $("signal").textContent=d.signal??"--";
+  $("st").textContent=ts;
+}
+
+function initCh(){
+  ch=new Chart($("ch").getContext("2d"),{
+    type:"line",
+    data:{labels:[],datasets:[{
+      label:"Lưu lượng (m³/h)",data:[],
+      borderColor:"#1d6cf0",backgroundColor:"rgba(29,108,240,0.07)",
+      tension:0.4,fill:true,pointRadius:0,borderWidth:2
+    }]},
+    options:{
+      responsive:true,maintainAspectRatio:false,animation:false,
+      plugins:{legend:{labels:{color:"#6b7280",font:{size:12,family:"Plus Jakarta Sans"}}}},
+      scales:{
+        x:{ticks:{color:"#9ca3af",maxTicksLimit:10,font:{size:11}},grid:{color:"#f0f2f6"}},
+        y:{ticks:{color:"#9ca3af",font:{size:11}},grid:{color:"#f0f2f6"}}
+      }
+    }
+  });
+}
+
+function rCh(data){
+  const f=$("ct2sel").value;let d=data;
+  if(d.length>400){const s=Math.ceil(d.length/400);d=d.filter((_,i)=>i%s===0);}
+  ch.data.labels=d.map(r=>new Date(r.ts).toLocaleTimeString("vi-VN"));
+  ch.data.datasets[0].data=d.map(r=>r[f]??null);
+  ch.data.datasets[0].label=LB[f];
+  ch.data.datasets[0].borderColor=CL[f];
+  ch.data.datasets[0].backgroundColor=CL[f]+"12";
+  ch.update();
+}
+
+function magTag(sw){
+  if(!sw||sw==="--"||sw==="0xFFFF")return'<span class="tag ter">ERR</span>';
+  if(sw==="0x0000")return'<span class="tag tok">OK</span>';
+  return'<span class="tag twn">'+sw+'</span>';
+}
+
+function rTb(data){
+  const lim=parseInt($("tblLim").value)||100;
+  const tb=$("tb");
+  const last=data.slice(-lim).reverse();
+  if(!last.length){tb.innerHTML='<tr><td colspan="11" style="text-align:center;padding:24px;color:var(--muted)">Chưa có dữ liệu</td></tr>';return;}
+  tb.innerHTML=last.map((r,i)=>`<tr>
+    <td style="color:var(--hint)">${i+1}</td>
+    <td style="color:var(--muted);font-size:11px">${fts(r.ts)}</td>
+    <td style="color:var(--blue);font-weight:600">${fmt(r.flow_rate,4)}</td>
+    <td style="color:var(--green)">${fmt(r.total_fwd,4)}</td>
+    <td style="color:var(--amber)">${fmt(r.total_rev,4)}</td>
+    <td style="color:var(--purple)">${fmt(r.velocity,4)}</td>
+    <td>${magTag(r.mag_status)}</td>
+    <td style="color:var(--red)">${fmt(r.temperature,1)}</td>
+    <td style="color:var(--teal)">${fmt(r.humidity,1)}</td>
+    <td>${fmt(r.voltage,2)}</td>
+    <td style="color:var(--muted)">${r.signal??'--'}</td>
+  </tr>`).join("");
+}
+
+async function lHist(){
+  try{
+    const h=$("tr").value;
+    const d=$("dev-sel").value;
+    const j=await(await fetch("/api/history?device="+d+"&hours="+h+"&limit=5000")).json();
+    rows=j.data||[];rCh(rows);rTb(rows);
+    log("✅ Tải "+rows.length+" bản ghi ["+d+"] ("+h+"h)");
+    alrt("Đã tải "+rows.length+" bản ghi","s");
+  }catch(e){log("⚠ "+e.message);}
+}
+
+async function lStats(){
+  try{
+    const dsel=$("dev-sel").value;
+    const d=await(await fetch("/api/stats?device="+dsel)).json();
+    $("iT").textContent=(d.total??0).toLocaleString();
+    $("iY").textContent=d.today??0;
+    $("iA").textContent=d.avg_t!=null?d.avg_t+"°C":"--";
+    $("iMM").textContent=(d.min_t??'--')+"°C / "+(d.max_t??'--')+"°C";
+    $("iFA").textContent=d.avg_flow!=null?d.avg_flow+" m³/h":"--";
+    $("iFMM").textContent="max: "+(d.max_flow??'--')+" m³/h";
+    $("iTF").textContent=d.max_total_fwd!=null?d.max_total_fwd+" m³":"--";
+    $("iU").textContent=d.uptime!=null?Math.floor(d.uptime/60):"--";
+    $("iL").textContent=d.last_rx?"Cuối: "+fts(d.last_rx):"Chưa nhận";
+    bdg("bS","ok","Server: online ✅");
+    
+    // Update device selector status
+    const sel=$("dev-sel");
+    if(d.devices){
+      d.devices.forEach(dv=>{
+        const opt=[...sel.options].find(o=>o.value===dv.device_id);
+        if(opt){
+          const isOff=(Date.now()-new Date(dv.last_ts).getTime())>30000;
+          opt.textContent=(isOff?"🔴 ":"🟢 ")+dv.device_id + (dv.device_id===dsel?" (đang xem)":"");
+        }
+      });
+    }
+  }catch{bdg("bS","err","Server: offline ❌");}
+}
+
+function conn(){
+  const url=$("brk").value.trim();
+  if(mc){try{mc.end(true);}catch{}mc=null;}
+  bdg("bM","warn","MQTT: đang kết nối…");
+  log("Kết nối: "+url);
+  mc=mqtt.connect(url,{clientId:"dash_"+Math.random().toString(16).substr(2,8),reconnectPeriod:0,keepalive:30,clean:true});
+  mc.on("connect",()=>{bdg("bM","ok","MQTT: online ✅");log("✅ MQTT connected");alrt("Kết nối MQTT thành công!","s");Object.values(TP).forEach(t=>mc.subscribe(t));});
+  mc.on("message",(topic,buf)=>{
+    const p=buf.toString(),now=new Date().toISOString();
+    if(topic===TP.all){
+      try{
+        const d=JSON.parse(p.replace(/:\s*nan/gi,":null").replace(/:\s*-?inf/gi,":null"));
+        const curDev=$("dev-sel").value;
+        if(d.device_id===curDev){
+          updateMAG(d,now);
+          updateAux(d,now);
+          if(+$("tr").value<=1){
+            const f=$("ct2sel").value;
+            ch.data.labels.push(fn());
+            ch.data.datasets[0].data.push(d[f]??null);
+            if(ch.data.labels.length>360){ch.data.labels.shift();ch.data.datasets[0].data.shift();}
+            ch.update("none");
+          }
+        }
+        log("["+d.device_id+"] flow="+d.flow_rate+"m³/h total="+d.total_fwd+"m³ | T="+d.temperature+"°C");
+      }catch(e){log("JSON err: "+e.message);}
+      return;
+    }
+    if(topic===TP.ack) {
+      if(p==="TEST_SUCCESS") { log("✅ [TEST] Thiết bị phản hồi: TEST OK"); alrt("Thiết bị phản hồi: TEST OK","s"); }
+      else { log("📩 [ACK] "+p); }
+    }
+    if(topic===TP.status){const ok=/online/i.test(p);bdg("bD",ok?"ok":"warn","Thiết bị: "+(ok?"online ✅":"offline ⚠️"));}
+  });
+  mc.on("error",e=>{bdg("bM","err","MQTT: lỗi ❌");log("❌ "+e.message);sRC();});
+  mc.on("close",()=>{bdg("bM","err","MQTT: ngắt");sRC();});
+}
+
+let _rt=null;
+function sRC(){if(_rt)return;_rt=setTimeout(()=>{_rt=null;log("🔄 Reconnect…");conn();},5000);}
+function disc(){clearTimeout(_rt);_rt=null;if(mc){try{mc.end(true);}catch{}mc=null;}bdg("bM","","MQTT: ngắt");}
+
+async function sendCmd(cmd){
+  const dev=$("dev-sel").value;
+  try{
+    const r=await fetch("/api/command",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({command:cmd,device:dev})});
+    const j=await r.json();
+    if(j.success){log("🚀 Đã gửi lệnh ["+dev+"]: "+cmd);alrt("Đã gửi lệnh cho "+dev+" thành công!","s");}
+    else{log("❌ Lỗi: "+(j.error||"Không xác định"));alrt("Lỗi gửi lệnh!","e");}
+  }catch(e){log("❌ Lỗi mạng: "+e.message);alrt("Lỗi mạng!","e");}
+}
+
+async function expCSV(){
+  try{
+    const a=document.createElement("a");
+    a.href=URL.createObjectURL(await(await fetch("/api/export/csv?hours="+$("tr").value)).blob());
+    a.download="mag8000_"+new Date().toISOString().slice(0,10)+".csv";
+    a.click();alrt("Đã xuất CSV!","s");
+  }catch(e){alrt("Lỗi: "+e.message,"e");}
+}
+
+document.addEventListener("DOMContentLoaded",()=>{
+  initCh();
+  $("bc").onclick=conn;
+  $("bd").onclick=disc;
+  $("br").onclick=()=>{lHist();lStats();};
+  $("be").onclick=expCSV;
+  $("btn-read").onclick=()=>sendCmd("READ_NOW");
+  $("btn-test").onclick=()=>sendCmd("RUN_TEST");
+  $("dev-sel").onchange=()=>{lHist();lStats();};
+  $("tr").onchange=lHist;
+  $("ct2sel").onchange=()=>rCh(rows);
+  $("tblLim").onchange=()=>rTb(rows);
+  conn();lStats();lHist();
+  setInterval(lStats,30000);
+});
+</script>
+</body>
+</html>

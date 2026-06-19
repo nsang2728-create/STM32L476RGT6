@@ -1,0 +1,26 @@
+{
+  "name": "esp32-backend-pg",
+  "version": "3.2.0",
+  "description": "ESP32 MQTT Backend 24/7 - PostgreSQL Ready",
+  "type": "commonjs",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js",
+    "tunnel": "ngrok http 3001",
+    "deploy": "pm2 start server.js --name monitoring-backend --update-env",
+    "logs": "pm2 logs monitoring-backend",
+    "migrate": "node migrate_sqlite_to_pg.js"
+  },
+  "devDependencies": {
+    "ngrok": "^5.0.0-beta.2"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.6.1",
+    "express": "^4.18.2",
+    "mqtt": "^5.3.4",
+    "pg": "^8.20.0",
+    "sqlite3": "^5.1.7"
+  }
+}
