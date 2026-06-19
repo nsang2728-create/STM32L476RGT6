@@ -1,0 +1,8 @@
+node_modules/
+.env
+*.db
+*.exe
+*.docx
+Debug/
+Release/
+build/
