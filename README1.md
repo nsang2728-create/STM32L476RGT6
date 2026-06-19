@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # 🐘 STM32 Multi-Device Dashboard (PostgreSQL Version)
 
 Hệ thống đã được nâng cấp từ SQLite lên PostgreSQL để tăng hiệu năng và khả năng mở rộng.
@@ -35,7 +34,3 @@ Bạn có thể điều chỉnh thông số kết nối trong file `.env`:
 
 ---
 *Lưu ý: Nếu bạn muốn chuyển dữ liệu từ `sensors.db` cũ sang Postgres, hãy cho tôi biết để tôi viết script migrate.*
-=======
-# STM32L476RGT6
-CODE_DASHBOARD_IOT
->>>>>>> 60545e33e2ce7464aee24fe9639cac2954d67ac8
